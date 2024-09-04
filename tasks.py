@@ -7,17 +7,38 @@ from RPA.Browser.Selenium import Selenium
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import time
+from RPA.Robocorp.WorkItems import WorkItems
 
 browser = Selenium()
+workitems = WorkItems()
+
+search_phrase = "Babar Azam"
+
+images_dir = "output/news_images"
+os.makedirs(images_dir, exist_ok=True)
+excel_dir = "output/excel_files"
+os.makedirs(excel_dir, exist_ok=True)
+
+ # Data storage
+data = []
 
 @task
 def extract_news():
-    search_phrase = "cricket news"
-    save_dir = "output/news_images"
-    os.makedirs(save_dir, exist_ok=True)
-    
-    # Open the website
-    browser.open_available_browser("https://apnews.com/")
+
+    open_website_and_search_phrase()
+
+    get_news_data()
+
+    save_news_data_in_excel()
+
+    # Close the browser
+    browser.close_browser()
+
+
+def open_website_and_search_phrase():
+     # Open the website
+    browser.open_available_browser("https://apnews.com/")   
     
     # Wait until the search button is visible and clickable
     browser.wait_until_element_is_visible("//button[contains(@class, 'SearchOverlay-search-button')]")
@@ -32,11 +53,13 @@ def extract_news():
     # Wait for the search results to load
     browser.wait_until_page_contains(search_phrase)
 
-    # Data storage
-    data = []
-
+def get_news_data():
     # Use WebDriverWait to ensure the articles container is present
     try:
+        search_phrase, news_category, months = extract_parameters_from_workitem()
+        if search_phrase == '':
+            search_phrase = search_phrase
+
         wait = WebDriverWait(browser.driver, 10)
         articles_container = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".PageListStandardD .PageList-items")))
 
@@ -51,13 +74,19 @@ def extract_news():
                 title_element = article.find_element(By.CSS_SELECTOR, ".PagePromo-title .PagePromoContentIcons-text")
                 description_element = article.find_element(By.CSS_SELECTOR, ".PagePromo-description .PagePromoContentIcons-text")
                 date_element = article.find_element(By.CSS_SELECTOR, ".PagePromo-date .Timestamp-template")
-                image_file = article.find_element(By.CSS_SELECTOR, ".PagePromo-media .Image")
                 
                 title = title_element.text
                 description = description_element.text
                 date = date_element.text
-                image_url = image_file.get_attribute("src")
                 
+                # Try to find the image element, handle if it's missing
+                image_url = None
+                try:
+                    image_file = article.find_element(By.CSS_SELECTOR, ".PagePromo-media .Image")
+                    image_url = image_file.get_attribute("src")
+                except Exception as e:
+                    print(f"Image not found for article: {title}. Skipping image download.")
+
                 # Count occurrences of search phrase
                 title_count = title.lower().count(search_phrase.lower())
                 description_count = description.lower().count(search_phrase.lower())
@@ -65,15 +94,17 @@ def extract_news():
                 # Check for money in text
                 contains_money = bool(money_pattern.search(title + ' ' + description))
                 
-                # Download image
-                image_filename = f"{title[:30]}.jpg".replace(" ", "_")  # Use a truncated title as filename
-                image_path = os.path.join(save_dir, image_filename)
-                response = requests.get(image_url)
-                if response.status_code == 200:
-                    with open(image_path, 'wb') as file:
-                        file.write(response.content)
-                else:
-                    image_filename = "Not Available"  # Default if image download fails
+                # Download image if URL was found
+                image_filename = "Not Available"
+                if image_url:
+                    image_filename = f"{title[:15]}.jpg".replace(" ", "_")  # Use a truncated title as filename
+                    image_path = os.path.join(images_dir, image_filename)
+                    response = requests.get(image_url)
+                    if response.status_code == 200:
+                        with open(image_path, 'wb') as file:
+                            file.write(response.content)
+                    else:
+                        image_filename = "Not Available"  # Default if image download fails
                 
                 data.append({
                     "Title": title,
@@ -90,10 +121,17 @@ def extract_news():
     except Exception as e:
         print(f"Error locating articles: {e}")
 
-    # Save to Excel
+
+def save_news_data_in_excel():
+     # Save to Excel
     wb = Workbook()
     ws = wb.active
-    ws.title = search_phrase
+    
+    # Ensure the worksheet title is not empty
+    if search_phrase.strip():
+        ws.title = search_phrase
+    else:
+        ws.title = "News Data"
 
     # Write headers
     headers = ["Title", "Date", "Description", "Image Filename", "Search Phrase Count", "Contains Money"]
@@ -111,7 +149,31 @@ def extract_news():
         ])
 
     # Save the Excel file
-    wb.save("news_articles.xlsx")
+    timestamp = time.time()
 
-    # Close the browser
-    browser.close_browser()
+    # Separate the fractional part after the decimal point
+    fractional_part = int(timestamp)
+    file_name = excel_dir + "/news_file_"+ str(fractional_part) +".xlsx"
+    wb.save(file_name)
+
+def extract_parameters_from_workitem():
+
+ # Attempt to get the input work item
+    try:
+        workitems.get_input_work_item()
+        
+        # Fetch parameters from the work item
+        search_phrase = workitems.get_work_item_variable("search_phrase", "")
+        news_category = workitems.get_work_item_variable("news_category", "")
+        months = int(workitems.get_work_item_variable("months", 0))
+
+        return search_phrase, news_category, months
+        
+    except RuntimeError as e:
+        # If no active work item, use default values for testing
+        print(f"No active work item found. Using default values. Error: {e}")
+        search_phrase = "Babar Azam"
+        news_category = "sports"
+        months = 1
+
+        return search_phrase, news_category, months
