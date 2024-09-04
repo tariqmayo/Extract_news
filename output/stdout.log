@@ -1,0 +1,9 @@
+
+Collecting tasks from: tasks.py
+============================ Running: [96mextract_news[0m =============================
+Image not found for article: Dawid Malan, former top-ranked T20 batter, retires from England cricket duty. Skipping image download.
+Image not found for article: India says ‘no’ to hosting women’s T20 Cricket World Cup in October. Skipping image download.
+Image not found for article: India coach Gautam Gambhir backs Virat Kohli and Rohit Sharma to play at 2027 Cricket World Cup. Skipping image download.
+[96mextract_news[0m status: PASS
+================================================================================
+Robocorp Log (html): c:\Users\Tariq\Desktop\RPA\extract_data_from_news_site\output\log.html
