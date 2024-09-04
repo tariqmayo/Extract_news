@@ -13,7 +13,7 @@ from RPA.Robocorp.WorkItems import WorkItems
 browser = Selenium()
 workitems = WorkItems()
 
-search_phrase = "Babar Azam"
+search_phrase = "cricket news"
 
 images_dir = "output/news_images"
 os.makedirs(images_dir, exist_ok=True)
@@ -172,7 +172,7 @@ def extract_parameters_from_workitem():
     except RuntimeError as e:
         # If no active work item, use default values for testing
         print(f"No active work item found. Using default values. Error: {e}")
-        search_phrase = "Babar Azam"
+        search_phrase = "Virat Kohli"
         news_category = "sports"
         months = 1
 
